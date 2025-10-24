@@ -1,0 +1,39 @@
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+httpx>=0.24.0
+pydantic>=1.10.11
+jsonschema>=4.19.0
+python-dateutil>=2.8.2
+
+# DB / persistence
+sqlite-utils>=3.12.0         # optional helper for SQLite; works locally, lightweight
+
+# Optional short-term / cache (optional; remove if not used)
+redis>=4.5.0                 # only if you want to run Redis locally
+
+# Optional semantic routing / embeddings (local, free)
+sentence-transformers>=2.2.2
+faiss-cpu>=1.7.4
+
+# Optional local vector DB (if you prefer Chroma)
+chromadb>=0.4.0
+
+# Dev / quality / testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0
+black>=24.3.0
+isort>=5.12.0
+mypy>=1.6.0
+pre-commit>=3.4.0
+
+# Utilities
+python-dotenv>=1.0.0
+loguru>=0.7.0
+typing_extensions>=4.7.1
+
+# (Optional) for running frontend locally with a simple server (if needed)
+http-server>=0.12.3
+
+# For local CLI helpers
+click>=8.1.7
