@@ -1,0 +1,9 @@
+[
+  {
+    "id": "gemini-wrapper",
+    "name": "Gemini Wrapper",
+    "url": "http://localhost:5010",
+    "description": "LLM wrapper for text generation",
+    "capabilities": ["text-generation"]
+  }
+]
