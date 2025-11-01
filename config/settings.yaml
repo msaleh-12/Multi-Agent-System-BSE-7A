@@ -3,6 +3,7 @@ supervisor:
   port: 8000
   jwt_secret: "a-very-secret-key"
   registry_file: ./config/registry.json
+  health_check_interval: 15
   stm_size: 10
 
 gemini_wrapper:

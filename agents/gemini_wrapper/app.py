@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from shared.models import TaskEnvelope, CompletionReport
-from gemini_wrapper import ltm, client
+from agents.gemini_wrapper import ltm, client
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)

@@ -1,7 +1,10 @@
 # supervisor/main.py
 import logging
+import asyncio
+import yaml
 from fastapi import FastAPI, Depends, HTTPException
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 
 from shared.models import RequestPayload, RequestResponse, User
 from supervisor import registry, memory_manager, auth, routing
@@ -10,17 +13,48 @@ from supervisor.worker_client import forward_to_agent
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
 
+with open("config/settings.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+HEALTH_CHECK_INTERVAL = config['supervisor'].get('health_check_interval', 15)
+
+async def periodic_health_checks():
+    """Periodically run health checks for all registered agents."""
+    while True:
+        _logger.info("Running periodic agent health checks...")
+        await registry.health_check_agents()
+        await asyncio.sleep(HEALTH_CHECK_INTERVAL)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # On startup
     _logger.info("Supervisor starting up...")
     registry.load_registry()
+    # Initial health check
     await registry.health_check_agents()
+    
+    # Start periodic health checks as a background task
+    health_check_task = asyncio.create_task(periodic_health_checks())
+    
     yield
+    
     # On shutdown
     _logger.info("Supervisor shutting down.")
+    health_check_task.cancel()
+    try:
+        await health_check_task
+    except asyncio.CancelledError:
+        _logger.info("Health check task cancelled successfully.")
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post('/api/auth/login')
 async def login(payload: dict):
