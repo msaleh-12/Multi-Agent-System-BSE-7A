@@ -9,6 +9,6 @@ supervisor:
 gemini_wrapper:
   host: 127.0.0.1
   port: 5010
-  mode: "auto"  # auto -> cloud if env present else mock
+  mode: "cloud"  # auto -> cloud if env present else mock
   external_api_url: "${GEMINI_API_URL}"
   api_key_env: "GEMINI_API_KEY"
