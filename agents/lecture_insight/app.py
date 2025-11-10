@@ -12,6 +12,7 @@ from datetime import datetime
 
 from shared.models import TaskEnvelope, CompletionReport
 from agents.lecture_insight.models import LectureInsightInput, LectureInsightOutput
+from agents.lecture_insight import ltm
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ _logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Initialize resources on startup, cleanup on shutdown."""
     _logger.info("🎓 Lecture Insight Agent starting up...")
-    # TODO: Initialize LTM database
+    await ltm.init_db()
     # TODO: Initialize LangGraph workflow
     yield
     _logger.info("🎓 Lecture Insight Agent shutting down...")
@@ -64,6 +65,16 @@ async def agent_info():
     }
 
 
+@app.get('/cache-stats')
+async def cache_stats():
+    """Get LTM cache statistics."""
+    stats = await ltm.get_stats()
+    return {
+        "cache": stats,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 @app.post('/process', response_model=CompletionReport)
 async def process_task(req: Request):
     """
@@ -96,9 +107,23 @@ async def process_task(req: Request):
             results={"error": f"Invalid parameters: {str(e)}"}
         )
     
-    # TODO: Check LTM cache first (Phase 4)
+    # Check LTM cache first
+    cached_output = await ltm.lookup(
+        audio_data=input_data.audio_input.data,
+        preferences=input_data.preferences.model_dump()
+    )
+    if cached_output:
+        _logger.info(f"⚡ Returning cached result for session {input_data.session_id}")
+        return CompletionReport(
+            message_id=str(uuid.uuid4()),
+            sender="LectureInsightAgent",
+            recipient=task_envelope.sender,
+            related_message_id=task_envelope.message_id,
+            status="SUCCESS",
+            results={"output": cached_output, "cached": True}
+        )
     
-    # TODO: Process through LangGraph workflow (Phase 2.3-2.5)
+    # TODO: Process through LangGraph workflow (Phase 2.4-2.5)
     # For now, return a placeholder response
     try:
         # Placeholder processing
@@ -118,6 +143,13 @@ async def process_task(req: Request):
                 "timestamp": datetime.utcnow().isoformat()
             }
         }
+        
+        # Save to LTM cache for future requests
+        await ltm.save(
+            audio_data=input_data.audio_input.data,
+            preferences=input_data.preferences.model_dump(),
+            output=output
+        )
         
         _logger.info(f"✅ Task completed: {task_envelope.message_id}")
         
