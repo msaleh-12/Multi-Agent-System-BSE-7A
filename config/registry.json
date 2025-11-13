@@ -5,5 +5,12 @@
     "url": "http://localhost:5010",
     "description": "LLM wrapper for text generation",
     "capabilities": ["text-generation"]
+  },
+   {
+    "id": "peer-collaboration",
+    "name": "Peer Collaboration Agent",
+    "url": "http://localhost:5011",
+    "description": "Analyzes team discussions and suggests collaboration improvements",
+    "capabilities": ["collaboration-analysis"]
   }
 ]
