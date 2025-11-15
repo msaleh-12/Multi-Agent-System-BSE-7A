@@ -11,5 +11,9 @@ pytest
 requests
 aiosqlite
 google-generativeai
-dotenv
+python-dotenv
+langgraph>=0.2.0
+assemblyai>=0.17.0
+tavily-python>=0.3.0
+google-api-python-client>=2.0.0
 
