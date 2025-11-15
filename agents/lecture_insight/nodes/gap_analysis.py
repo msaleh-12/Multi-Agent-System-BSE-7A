@@ -243,21 +243,38 @@ Return ONLY the JSON object, no other text."""
                     raise ValueError(f"Too few quality learning gaps after filtering: {len(filtered_gaps)}")
                 
                 # Extract and validate search queries
-                search_queries = analysis_dict["search_queries"]
-                if not isinstance(search_queries, list) or len(search_queries) < 3:
-                    raise ValueError(
-                        f"Invalid search_queries: expected list with 3+ items, got {type(search_queries)} "
-                        f"with {len(search_queries) if isinstance(search_queries, list) else 0} items"
-                    )
+                search_queries = analysis_dict.get("search_queries", [])
+                if not isinstance(search_queries, list):
+                    _logger.warning(f"⚠️ search_queries not a list: {type(search_queries)}")
+                    search_queries = []
                 
                 # Filter out invalid queries
                 filtered_queries = [
                     query.strip() for query in search_queries
-                    if query and len(query.strip()) > 5  # At least 5 chars
+                    if query and isinstance(query, str) and len(query.strip()) > 5  # At least 5 chars
                 ][:8]  # Limit to 8 queries
                 
+                # If we got too few search queries, generate fallback from keywords + gaps
                 if len(filtered_queries) < 3:
-                    raise ValueError(f"Too few quality search queries after filtering: {len(filtered_queries)}")
+                    _logger.warning(
+                        f"⚠️ Only {len(filtered_queries)} search queries from Gemini, "
+                        f"generating fallback from gaps and keywords"
+                    )
+                    # Generate search queries from learning gaps + keywords
+                    fallback_queries = []
+                    for gap in filtered_gaps[:3]:
+                        # Convert gap to search query (e.g., "Linear algebra" → "linear algebra tutorial for beginners")
+                        fallback_queries.append(f"{gap} tutorial for beginners")
+                        fallback_queries.append(f"learn {gap} step by step")
+                    
+                    for keyword in keywords[:3]:
+                        fallback_queries.append(f"{keyword} explained simply")
+                    
+                    # Combine with any valid queries from Gemini
+                    filtered_queries = filtered_queries + fallback_queries
+                    filtered_queries = list(dict.fromkeys(filtered_queries))[:8]  # Deduplicate, limit to 8
+                    
+                    _logger.info(f"✅ Generated {len(filtered_queries)} search queries (with fallback)")
                 
                 _logger.info(
                     f"✅ Gap analysis generated: {len(filtered_gaps)} gaps, "

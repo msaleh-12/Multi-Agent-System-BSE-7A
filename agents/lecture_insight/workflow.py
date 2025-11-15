@@ -141,7 +141,6 @@ async def execute_workflow(input_data: Dict[str, Any]) -> LectureState:
     Args:
         input_data: Dict with required keys:
             - audio_input: AudioInput dict (type, data, format)
-            - session_id: Unique session identifier
             - user_id: User identifier
             - preferences: ProcessingPreferences dict (optional)
         
@@ -159,14 +158,13 @@ async def execute_workflow(input_data: Dict[str, Any]) -> LectureState:
     Example:
         >>> result = await execute_workflow({
         ...     "audio_input": {"type": "url", "data": "...", "format": "mp3"},
-        ...     "session_id": "session-123",
         ...     "user_id": "user-456",
         ...     "preferences": {"resource_limit": 10}
         ... })
         >>> print(result["summary"])
     """
     start_time = time.time()
-    session_id = input_data.get('session_id', 'unknown')
+    user_id = input_data.get('user_id', 'anonymous')
     
     # Validate required inputs (fail fast)
     if not input_data.get('audio_input'):
@@ -182,20 +180,7 @@ async def execute_workflow(input_data: Dict[str, Any]) -> LectureState:
             "audio_duration": 0
         }
     
-    if not input_data.get('session_id'):
-        _logger.error("❌ Missing required field: session_id")
-        return {
-            "error": "Missing required field: session_id",
-            "transcript": "",
-            "summary": "",
-            "keywords": [],
-            "learning_gaps": [],
-            "articles": [],
-            "videos": [],
-            "audio_duration": 0
-        }
-    
-    _logger.info(f"🚀 Starting workflow execution for session {session_id}")
+    _logger.info(f"🚀 Starting workflow execution for user {user_id}")
     
     try:
         # Initialize state with defaults (TypedDict compliant)
@@ -249,6 +234,8 @@ def state_to_output(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Convert workflow state to LectureInsightOutput format.
     
+    Converts structured summary dict to PRD-compliant string format.
+    
     Args:
         state: Final workflow state
         
@@ -257,10 +244,33 @@ def state_to_output(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     processing_time = time.time() - state.get("start_time", time.time())
     
+    # Convert structured summary dict to string (PRD requires string)
+    summary_data = state.get("summary", "")
+    if isinstance(summary_data, dict):
+        # Format structured summary as readable text
+        summary_parts = []
+        
+        if summary_data.get("title"):
+            summary_parts.append(f"Title: {summary_data['title']}")
+        
+        if summary_data.get("summary"):
+            summary_parts.append(f"\n{summary_data['summary']}")
+        
+        if summary_data.get("key_points"):
+            summary_parts.append("\n\nKey Points:")
+            for i, point in enumerate(summary_data["key_points"], 1):
+                summary_parts.append(f"{i}. {point}")
+        
+        if summary_data.get("main_concepts"):
+            summary_parts.append("\n\nMain Concepts: " + ", ".join(summary_data["main_concepts"]))
+        
+        summary_text = "\n".join(summary_parts)
+    else:
+        summary_text = str(summary_data) if summary_data else ""
+    
     return {
-        "session_id": state.get("session_id", ""),
         "transcript": state.get("transcript", ""),
-        "summary": state.get("summary", ""),
+        "summary": summary_text,
         "keywords": state.get("keywords", []),
         "learning_gaps": state.get("learning_gaps", []),
         "resources": {

@@ -30,7 +30,6 @@ class ProcessingPreferences(BaseModel):
 class LectureInsightInput(BaseModel):
     """Main input model for lecture processing."""
     audio_input: AudioInput
-    session_id: str
     user_id: str
     preferences: ProcessingPreferences = Field(default_factory=ProcessingPreferences)
 
@@ -74,7 +73,6 @@ class ProcessingMetadata(BaseModel):
 
 class LectureInsightOutput(BaseModel):
     """Main output model for lecture processing."""
-    session_id: str
     transcript: str
     summary: str
     keywords: List[str]
@@ -97,7 +95,6 @@ class LectureState(TypedDict, total=False):
     """
     # Input data (required)
     audio_input: dict  # AudioInput as dict
-    session_id: str
     user_id: str
     preferences: dict  # ProcessingPreferences as dict
     
