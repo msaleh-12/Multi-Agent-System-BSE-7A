@@ -20,7 +20,7 @@ def decide_agent(payload: RequestPayload, agents: List[Agent]) -> List[str]:
             if "text-generation" in agent.capabilities:
                 _logger.info(f"Routing to {agent.id} based on keywords.")
                 return [agent.id]
-
+            
     # Default to gemini-wrapper if no other agent is found
     _logger.warning("No specific agent found, defaulting to gemini-wrapper.")
     return ["gemini-wrapper"]

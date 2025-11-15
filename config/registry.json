@@ -5,5 +5,13 @@
     "url": "http://localhost:5010",
     "description": "LLM wrapper for text generation",
     "capabilities": ["text-generation"]
+  },
+
+  {
+    "id": "adaptive-quiz-master",
+    "name": "Adaptive Quiz Master",
+    "url": "http://localhost:5020",
+    "description": "Generates adaptive quizzes based on user performance",
+    "capabilities": ["quiz-generation", "performance-tracking", "adaptive-learning"]
   }
 ]
