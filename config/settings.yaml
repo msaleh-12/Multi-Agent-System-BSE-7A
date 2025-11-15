@@ -12,3 +12,8 @@ gemini_wrapper:
   mode: "auto"  # auto -> cloud if env present else mock
   external_api_url: "${GEMINI_API_URL}"
   api_key_env: "GEMINI_API_KEY"
+
+research_finder:
+  host: 127.0.0.1
+  port: 5012
+

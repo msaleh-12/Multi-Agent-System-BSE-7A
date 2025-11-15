@@ -5,5 +5,13 @@
     "url": "http://localhost:5010",
     "description": "LLM wrapper for text generation",
     "capabilities": ["text-generation"]
+  },
+  {
+    "id": "research-finder",
+    "name": "Research Finder Agent",
+    "url": "http://localhost:5012",
+    "description": "Finds and summarizes recent research papers and case studies.",
+    "capabilities": ["research-search"]
   }
+  
 ]
