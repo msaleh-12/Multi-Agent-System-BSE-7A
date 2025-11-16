@@ -128,7 +128,7 @@ Expected response:
 { "status": "healthy", "agent": "assignment_coach" }
 ```
 
-### Test Assignment Coach with Gemini API
+### Test Assignment Coach
 
 in the tests folder:
 
