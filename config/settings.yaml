@@ -18,8 +18,8 @@ exam_readiness_agent:
   port: 8003
   mode: "auto" # auto -> cloud if GEMINI_API_KEY present else mock
   api_key_env: "GEMINI_API_KEY"
-  default_model: "gemini-2.0-flash-exp"
-  max_tokens: 800000
+  default_model: "gemini-2.5-flash"
+  max_tokens: 8000
   # RAG settings
   rag_chunk_size: 500
   rag_chunk_overlap: 100

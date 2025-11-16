@@ -85,13 +85,28 @@ async def process_task(req: Request):
     # Extract parameters - supervisor sends RequestPayload in task.parameters
     params = task_envelope.task.parameters
     
-    # Check if this is an assessment generation request
-    # Parameters can come directly or nested
+    # Extract assessment-specific parameters
+    # They can be nested under "assessment_params" or directly in params
     assessment_params = params.get("assessment_params", params)
+    
+    # Build a clean dict with only assessment parameters
+    assessment_data = {
+        "subject": assessment_params.get("subject"),
+        "assessment_type": assessment_params.get("assessment_type"),
+        "difficulty": assessment_params.get("difficulty"),
+        "question_count": assessment_params.get("question_count"),
+        "type_counts": assessment_params.get("type_counts"),
+        "allow_latex": assessment_params.get("allow_latex", True),
+        "created_by": assessment_params.get("created_by", "supervisor"),
+        "use_rag": assessment_params.get("use_rag", False),
+        "rag_top_k": assessment_params.get("rag_top_k", 6),
+        "rag_max_chars": assessment_params.get("rag_max_chars", 4000),
+        "rag_context": assessment_params.get("rag_context"),
+    }
     
     # Validate required parameters for assessment generation
     required_fields = ["subject", "assessment_type", "difficulty", "question_count", "type_counts"]
-    missing = [f for f in required_fields if f not in assessment_params]
+    missing = [f for f in required_fields if not assessment_data.get(f)]
     
     if missing:
         return CompletionReport(
@@ -105,8 +120,8 @@ async def process_task(req: Request):
 
     try:
         # Validate type counts sum
-        type_counts = assessment_params["type_counts"]
-        question_count = assessment_params["question_count"]
+        type_counts = assessment_data["type_counts"]
+        question_count = assessment_data["question_count"]
         total_requested = sum(type_counts.values())
         
         if total_requested != question_count:
@@ -122,26 +137,26 @@ async def process_task(req: Request):
             )
         
         # Build RAG context if requested
-        rag_context = assessment_params.get("rag_context")
-        if assessment_params.get("use_rag") and rag_service.get_document_count() > 0:
-            results = rag_service.search(assessment_params["subject"], k=assessment_params.get("rag_top_k", 6))
+        rag_context = assessment_data.get("rag_context")
+        if assessment_data.get("use_rag") and rag_service.get_document_count() > 0:
+            results = rag_service.search(assessment_data["subject"], k=assessment_data["rag_top_k"])
             context_text = "\n\n".join([r.content for r in results])
-            rag_max_chars = assessment_params.get("rag_max_chars", 4000)
+            rag_max_chars = assessment_data["rag_max_chars"]
             if len(context_text) > rag_max_chars:
                 context_text = context_text[:rag_max_chars] + "\n[truncated]"
             rag_context = context_text
         
         # Generate questions using existing service
         all_questions, type_errors = generate_questions_by_type(
-            subject=assessment_params["subject"],
-            assessment_type=assessment_params["assessment_type"],
-            difficulty=assessment_params["difficulty"],
+            subject=assessment_data["subject"],
+            assessment_type=assessment_data["assessment_type"],
+            difficulty=assessment_data["difficulty"],
             type_counts=type_counts,
-            allow_latex=assessment_params.get("allow_latex", True),
+            allow_latex=assessment_data["allow_latex"],
             rag_context=rag_context,
             pdf_paths=None,
-            rag_top_k=assessment_params.get("rag_top_k", 6),
-            rag_max_chars=assessment_params.get("rag_max_chars", 4000),
+            rag_top_k=assessment_data["rag_top_k"],
+            rag_max_chars=assessment_data["rag_max_chars"],
         )
         
         # Check for generation errors
@@ -158,17 +173,17 @@ async def process_task(req: Request):
         
         # Build assessment response
         assessment = {
-            "title": f"{assessment_params['subject']} — {assessment_params['assessment_type'].capitalize()} ({assessment_params['difficulty'].capitalize()})",
-            "description": f"Auto-generated {assessment_params['assessment_type']} ({assessment_params['difficulty']}) for {assessment_params['subject']}",
-            "assessment_type": assessment_params["assessment_type"],
-            "subject": assessment_params["subject"],
-            "difficulty": assessment_params["difficulty"],
+            "title": f"{assessment_data['subject']} — {assessment_data['assessment_type'].capitalize()} ({assessment_data['difficulty'].capitalize()})",
+            "description": f"Auto-generated {assessment_data['assessment_type']} ({assessment_data['difficulty']}) for {assessment_data['subject']}",
+            "assessment_type": assessment_data["assessment_type"],
+            "subject": assessment_data["subject"],
+            "difficulty": assessment_data["difficulty"],
             "total_questions": len(all_questions),
             "questions": all_questions,
             "created_at": datetime.utcnow().isoformat(),
             "metadata": {
-                "created_by": assessment_params.get("created_by", "supervisor"),
-                "allow_latex": assessment_params.get("allow_latex", True),
+                "created_by": assessment_data["created_by"],
+                "allow_latex": assessment_data["allow_latex"],
                 "used_rag": bool(rag_context),
                 "type_distribution": {k: v for k, v in type_counts.items() if v > 0}
             }
@@ -186,7 +201,7 @@ async def process_task(req: Request):
             related_message_id=task_envelope.message_id,
             status="SUCCESS",
             results={
-                "output": output,
+                "output": assessment,
                 "assessment": assessment,
                 "cached": False
             }
