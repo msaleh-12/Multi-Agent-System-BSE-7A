@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 from enum import Enum
+from contextlib import asynccontextmanager
 import uvicorn
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import shutil
 from datetime import datetime
 import uuid
 import json
+import logging
 from fastapi import Request
 
 from .services.assessment_service import (
@@ -26,11 +28,23 @@ from .models import (
     RAGSearchResponse,
 )
 from shared.models import TaskEnvelope, CompletionReport
+from . import ltm
+
+_logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize LTM database on startup"""
+    _logger.info("Initializing Assessment LTM...")
+    await ltm.init_db()
+    yield
+    _logger.info("Shutting down Assessment Agent")
 
 app = FastAPI(
     title="Assessment Generation Agent",
     description="A multi-agent system designed to assist university teachers by automating the generation of assessments (quizzes, assignments, exams). The system uses specialized AI agents to generate MCQs, short questions, and long questions based on the specified structure, difficulty levels",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Global RAG service instance
@@ -58,11 +72,16 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    cache_stats = await ltm.get_stats()
     return {
         "status": "healthy",
         "agent_type": "exam readiness",
-        "capabilities": ["quiz", "assignment", "examination", "rag", "pdf_export"],
-        "rag_documents_loaded": rag_service.get_document_count()
+        "capabilities": ["quiz", "assignment", "examination", "rag", "pdf_export", "ltm_cache"],
+        "rag_documents_loaded": rag_service.get_document_count(),
+        "cache_stats": {
+            "total_cached": cache_stats.get("total_cached", 0),
+            "database_size_bytes": cache_stats.get("database_size_bytes", 0)
+        }
     }
 
 
@@ -148,6 +167,57 @@ async def process_task(req: Request):
                     "error": f"Sum of type_counts ({total_requested}) must equal question_count ({question_count})"
                 }
             )
+        
+        # Check LTM cache before generating
+        cache_key = ltm.generate_cache_key(assessment_data)
+        cached_assessment = await ltm.lookup(cache_key)
+        
+        if cached_assessment:
+            _logger.info(f"LTM cache hit! Returning cached assessment for key {cache_key[:16]}...")
+            
+            # Handle PDF export for cached assessments if requested
+            pdf_path = None
+            pdf_exported = False
+            if assessment_data.get("export_pdf"):
+                try:
+                    # Generate filename
+                    if assessment_data.get("pdf_output_filename"):
+                        safe_filename = Path(assessment_data["pdf_output_filename"]).name
+                        if not safe_filename.endswith('.pdf'):
+                            safe_filename += '.pdf'
+                    else:
+                        timestamp = int(datetime.utcnow().timestamp())
+                        subject_clean = assessment_data['subject'].replace(' ', '_')
+                        safe_filename = f"{subject_clean}_{assessment_data['assessment_type']}_{timestamp}.pdf"
+                    
+                    output_path = GENERATED_ASSESSMENTS_DIR / safe_filename
+                    generate_assessment_pdf(cached_assessment, str(output_path))
+                    
+                    pdf_path = safe_filename
+                    pdf_exported = True
+                except Exception as e:
+                    _logger.warning(f"PDF export failed for cached assessment: {e}")
+            
+            # Build result with cached data
+            result_data = {
+                "output": cached_assessment,
+                "cached": True,
+                "pdf_exported": pdf_exported
+            }
+            
+            if pdf_path:
+                result_data["pdf_path"] = pdf_path
+            
+            return CompletionReport(
+                message_id=str(uuid.uuid4()),
+                sender="AssessmentGenerationAgent",
+                recipient=task_envelope.sender,
+                related_message_id=task_envelope.message_id,
+                status="SUCCESS",
+                results=result_data
+            )
+        
+        _logger.info(f"LTM cache miss. Generating new assessment for key {cache_key[:16]}...")
         
         # Handle PDF input for RAG
         rag_pdfs_loaded = []
@@ -237,6 +307,10 @@ async def process_task(req: Request):
                 "type_distribution": {k: v for k, v in type_counts.items() if v > 0}
             }
         }
+        
+        # Save to LTM cache
+        await ltm.save(cache_key, assessment_data, assessment)
+        _logger.info(f"Saved assessment to LTM cache with key {cache_key[:16]}...")
         
         # Handle PDF export if requested
         pdf_path = None
@@ -494,6 +568,20 @@ async def rag_status():
         "upload_directory": str(UPLOAD_DIR),
         "status": "active" if rag_service.get_document_count() > 0 else "empty"
     }
+
+
+@app.get("/cache/stats")
+async def cache_stats():
+    """Get LTM cache statistics"""
+    stats = await ltm.get_stats()
+    return stats
+
+
+@app.delete("/cache/clear")
+async def clear_cache():
+    """Clear all cached assessments from LTM"""
+    result = await ltm.clear_cache()
+    return result
 
 
 if __name__ == "__main__":
