@@ -36,11 +36,21 @@ app = FastAPI(
 # Global RAG service instance
 rag_service = RAGService()
 
-# Temporary directory for uploaded PDFs
+# Get the base directory for exam_readiness agent
+BASE_DIR = Path(__file__).parent
+
+# Directory for RAG input PDFs (relative to exam_readiness/)
+RAG_DOCUMENTS_DIR = BASE_DIR / "rag_documents"
+RAG_DOCUMENTS_DIR.mkdir(exist_ok=True)
+
+# Directory for generated assessment PDFs (relative to exam_readiness/)
+GENERATED_ASSESSMENTS_DIR = BASE_DIR / "generated_assessments"
+GENERATED_ASSESSMENTS_DIR.mkdir(exist_ok=True)
+
+# Legacy directories for backward compatibility with /upload-pdfs endpoint
 UPLOAD_DIR = Path(tempfile.gettempdir()) / "assessment_uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
-# Output directory for generated PDFs
 OUTPUT_DIR = Path(tempfile.gettempdir()) / "assessment_outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -102,6 +112,9 @@ async def process_task(req: Request):
         "rag_top_k": assessment_params.get("rag_top_k", 6),
         "rag_max_chars": assessment_params.get("rag_max_chars", 4000),
         "rag_context": assessment_params.get("rag_context"),
+        "pdf_input_paths": assessment_params.get("pdf_input_paths", []),
+        "export_pdf": assessment_params.get("export_pdf", False),
+        "pdf_output_filename": assessment_params.get("pdf_output_filename"),
     }
     
     # Validate required parameters for assessment generation
@@ -135,6 +148,42 @@ async def process_task(req: Request):
                     "error": f"Sum of type_counts ({total_requested}) must equal question_count ({question_count})"
                 }
             )
+        
+        # Handle PDF input for RAG
+        rag_pdfs_loaded = []
+        pdf_input_paths = assessment_data.get("pdf_input_paths", [])
+        if pdf_input_paths:
+            absolute_paths = []
+            for pdf_path in pdf_input_paths:
+                # Sanitize filename to prevent path traversal
+                safe_filename = Path(pdf_path).name
+                abs_path = RAG_DOCUMENTS_DIR / safe_filename
+                
+                if not abs_path.exists():
+                    return CompletionReport(
+                        message_id=str(uuid.uuid4()),
+                        sender="AssessmentGenerationAgent",
+                        recipient=task_envelope.sender,
+                        related_message_id=task_envelope.message_id,
+                        status="FAILURE",
+                        results={"error": f"PDF file not found: {safe_filename}"}
+                    )
+                
+                absolute_paths.append(str(abs_path))
+                rag_pdfs_loaded.append(safe_filename)
+            
+            # Load PDFs into RAG service
+            try:
+                rag_service.load_pdfs(absolute_paths)
+            except Exception as e:
+                return CompletionReport(
+                    message_id=str(uuid.uuid4()),
+                    sender="AssessmentGenerationAgent",
+                    recipient=task_envelope.sender,
+                    related_message_id=task_envelope.message_id,
+                    status="FAILURE",
+                    results={"error": f"Failed to load PDFs: {str(e)}"}
+                )
         
         # Build RAG context if requested
         rag_context = assessment_data.get("rag_context")
@@ -189,10 +238,49 @@ async def process_task(req: Request):
             }
         }
         
-        # Format output similar to gemini_wrapper
-        output = f"Generated assessment: {assessment['title']}\n"
-        output += f"Total questions: {assessment['total_questions']}\n"
-        output += f"Type distribution: {assessment['metadata']['type_distribution']}"
+        # Handle PDF export if requested
+        pdf_path = None
+        pdf_exported = False
+        if assessment_data.get("export_pdf"):
+            try:
+                # Generate filename
+                if assessment_data.get("pdf_output_filename"):
+                    # Sanitize custom filename
+                    safe_filename = Path(assessment_data["pdf_output_filename"]).name
+                    if not safe_filename.endswith('.pdf'):
+                        safe_filename += '.pdf'
+                else:
+                    # Auto-generate filename
+                    timestamp = int(datetime.utcnow().timestamp())
+                    subject_clean = assessment_data['subject'].replace(' ', '_')
+                    safe_filename = f"{subject_clean}_{assessment_data['assessment_type']}_{timestamp}.pdf"
+                
+                # Full path for PDF export
+                output_path = GENERATED_ASSESSMENTS_DIR / safe_filename
+                
+                # Generate PDF
+                generate_assessment_pdf(assessment, str(output_path))
+                
+                pdf_path = safe_filename  # Return relative path
+                pdf_exported = True
+            except Exception as e:
+                # Don't fail the whole request if PDF export fails
+                pdf_path = None
+                pdf_exported = False
+                assessment["metadata"]["pdf_export_error"] = str(e)
+        
+        # Build result metadata
+        result_data = {
+            "output": assessment,
+            "cached": False,
+            "pdf_exported": pdf_exported
+        }
+        
+        if pdf_path:
+            result_data["pdf_path"] = pdf_path
+        
+        if rag_pdfs_loaded:
+            result_data["rag_pdfs_loaded"] = rag_pdfs_loaded
         
         return CompletionReport(
             message_id=str(uuid.uuid4()),
@@ -200,11 +288,7 @@ async def process_task(req: Request):
             recipient=task_envelope.sender,
             related_message_id=task_envelope.message_id,
             status="SUCCESS",
-            results={
-                "output": assessment,
-                "assessment": assessment,
-                "cached": False
-            }
+            results=result_data
         )
         
     except Exception as e:
