@@ -5,5 +5,20 @@
     "url": "http://localhost:5010",
     "description": "LLM wrapper for text generation",
     "capabilities": ["text-generation"]
+  },
+  {
+    "id": "exam-readiness-agent",
+    "name": "Exam Readiness Agent",
+    "url": "http://localhost:8003",
+    "description": "A multi-agent system designed to assist university teachers by automating the generation of assessments (quizzes, assignments, exams). The system uses specialized AI agents to generate MCQs, short questions, and long questions based on the specified structure, difficulty levels",
+    "capabilities": [
+      "assessment-generation",
+      "question-generation",
+      "quiz-creation",
+      "exam-creation",
+      "assignment-creation",
+      "rag-processing",
+      "pdf-export"
+    ]
   }
 ]
