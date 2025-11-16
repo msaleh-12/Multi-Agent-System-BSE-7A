@@ -1,9 +1,10 @@
 fastapi
 uvicorn
 pydantic
+pydantic-settings
 python-jose[cryptography]
 passlib[bcrypt]==1.7.4
-bcrypt==3.2.0
+bcrypt>=4.0.1
 pyjwt
 httpx
 PyYAML
@@ -13,7 +14,7 @@ aiosqlite
 google-generativeai
 python-dotenv
 langgraph
-chromadb
+chromadb>=1.3.0
 sentence-transformers
 numpy
 

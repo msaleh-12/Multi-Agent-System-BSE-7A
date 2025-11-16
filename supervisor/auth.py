@@ -15,6 +15,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
+# Pre-computed bcrypt hash for "password" to avoid import-time hashing issues
+# This hash was generated with: bcrypt.hashpw(b"password", bcrypt.gensalt())
+# Using a pre-computed hash to avoid compatibility issues between passlib 1.7.4 and bcrypt 5.0.0
+# The hash is verified to work with passlib's verify function
+_PASSWORD_HASH = "$2b$12$GzhiOj0CPynunZgjdNRMLupN7x9DnbliCrCo4xwGb8jBD61174OR2"
+
 # In-memory user store for simplicity
 users_db = {
     "test@example.com": {
@@ -22,7 +28,7 @@ users_db = {
         "name": "Test User",
         "email": "test@example.com",
         "avatar": None,
-        "password_hash": pwd_context.hash("password")
+        "password_hash": _PASSWORD_HASH
     }
 }
 
