@@ -1,150 +1,267 @@
-# Assignment Coach Agent
+# Multi-Agent System Setup Guide
 
-A minimal, production-ready agent that provides assignment understanding, task breakdown, resource suggestions, and progress guidance to students.
+## Prerequisites
 
-## Features
+- Python 3.8 or higher
+- PowerShell (Windows) or Bash (Linux/Mac)
+- Gemini API Key from Google AI Studio
 
-- ✅ **LangGraph Integration**: Uses LangGraph for workflow orchestration (no LangChain)
-- ✅ **Vector Database**: ChromaDB for long-term memory with semantic search
-- ✅ **Strict I/O Format**: Follows exact JSON input/output specification
-- ✅ **Independent Operation**: Completely independent from other agents
-- ✅ **Supervisor Integration**: Seamlessly integrates with supervisor routing
-- ✅ **Memory-First Design**: Checks LTM before processing new requests
+## Initial Setup
 
-## Architecture
+### 1. Create Python Virtual Environment
 
-```
-Assignment Coach Agent
-├── app.py              # FastAPI endpoint
-├── coach_agent.py      # LangGraph workflow
-└── ltm.py             # ChromaDB vector memory
-```
+```powershell
+# Navigate to project directory
+cd c:\Code\SPM-Project\Multi-Agent-System-BSE-7A
 
-### LangGraph Workflow
+# Create virtual environment
+python -m venv venv
 
-```
-Input → Parse → Summary → Task Plan → Resources → Feedback → Output
+# Activate virtual environment
+.\venv\Scripts\activate
 ```
 
-## Input Format
-
-```json
-{
-  "agent_name": "assignment_coach_agent",
-  "intent": "generate_assignment_guidance",
-  "payload": {
-    "student_id": "stu_001",
-    "assignment_title": "AI Chatbot Design Report",
-    "assignment_description": "...",
-    "subject": "Artificial Intelligence",
-    "deadline": "2025-10-20",
-    "difficulty": "Intermediate",
-    "student_profile": {
-      "learning_style": "visual",
-      "progress": 0.25,
-      "skills": ["writing", "communication"],
-      "weaknesses": ["time management"]
-    }
-  }
-}
-```
-
-## Output Format
-
-```json
-{
-  "agent_name": "assignment_coach_agent",
-  "status": "success",
-  "response": {
-    "assignment_summary": "...",
-    "task_plan": [{ "step": 1, "task": "...", "estimated_time": "2 days" }],
-    "recommended_resources": [
-      { "type": "article", "title": "...", "url": "..." }
-    ],
-    "feedback": "You have completed 25% of your work...",
-    "motivation": "You're progressing well!...",
-    "timestamp": "2025-10-05T19:45:00Z"
-  }
-}
-```
-
-## Installation
-
-1. Install dependencies:
+For Linux/Mac:
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 2. Install Dependencies
+
+```powershell
+# Install supervisor dependencies
+pip install -r requirements.txt
+
+# Install assignment coach dependencies
 pip install -r agents/assignment_coach/requirements.txt
 ```
 
-2. The agent will run on port 5011:
+### 3. Configure Gemini API Key
 
-```bash
-# Linux/Mac
-./run_assignment_coach.sh
+Create a `.env` file in the project root directory:
 
-# Windows
+```powershell
+# Create .env file
+New-Item -Path .env -ItemType File -Force
+```
+
+Add your Gemini API key to the `.env` file:
+
+```
+GEMINI_API_KEY=your_api_key_here
+```
+
+**Important:** Replace `your_api_key_here` with your actual Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
+
+The `.env` file should look like this:
+
+```
+GEMINI_API_KEY=AIzaSyCA5LS4JosheBjxJPBmU1uI2U0BqT7mf4I
+```
+
+⚠️ **Note:** Without a valid Gemini API key, the Assignment Coach will return generic responses instead of AI-powered, assignment-specific guidance.
+
+## Running the System
+
+### Start the Supervisor (Terminal 1)
+
+```powershell
+# Activate virtual environment if not already activated
+.\venv\Scripts\activate
+
+# Run supervisor on port 8000
+uvicorn supervisor.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The supervisor will be available at: `http://localhost:8000`
+
+### Start the Assignment Coach Agent (Terminal 2)
+
+```powershell
+# Open a new terminal
+cd c:\Code\SPM-Project\Multi-Agent-System-BSE-7A
+
+# Activate virtual environment
+.\venv\Scripts\activate
+
+# Run assignment coach on port 5011
 uvicorn agents.assignment_coach.app:app --host 0.0.0.0 --port 5011 --reload
 ```
 
-## Testing
+The assignment coach will be available at: `http://localhost:5011`
+
+### Alternative: Using Bash Scripts (Linux/Mac)
 
 ```bash
-pytest agents/assignment_coach/tests/
+# Start supervisor
+./run_supervisor.sh
+
+# Start assignment coach (in another terminal)
+./run_assignment_coach.sh
 ```
 
-## Integration with Supervisor
+## Verify Setup
 
-The agent is automatically registered in `config/registry.json`:
+### Check Supervisor Health
+
+```powershell
+curl http://localhost:8000/health
+```
+
+Expected response:
 
 ```json
-{
-  "id": "assignment-coach",
-  "name": "Assignment Coach Agent",
-  "url": "http://localhost:5011",
-  "description": "Provide assignment understanding, task breakdown, resource suggestions, and progress guidance",
-  "capabilities": [
-    "assignment-guidance",
-    "task-planning",
-    "resource-recommendation",
-    "student-coaching"
-  ]
-}
+{ "status": "healthy" }
 ```
 
-## Vector Database (LTM)
+### Check Assignment Coach Health
 
-- **Engine**: ChromaDB (persistent)
-- **Location**: `./ltm_assignment_coach/`
-- **Strategy**: Semantic similarity search on assignment title + subject + description
-- **Threshold**: 0.3 (adjustable in `ltm.py`)
-
-When a similar assignment is found, the cached response is returned immediately.
-
-## Usage via Supervisor
-
-```bash
-# 1. Login
-curl -X POST http://localhost:8000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com", "password":"password"}'
-
-# 2. Submit assignment coaching request
-curl -X POST http://localhost:8000/api/supervisor/request \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agentId": "assignment-coach",
-    "request": "{\"agent_name\":\"assignment_coach_agent\",\"intent\":\"generate_assignment_guidance\",\"payload\":{...}}",
-    "priority": 1
-  }'
-```
-
-## Direct Agent Access
-
-```bash
-# Health check
+```powershell
 curl http://localhost:5011/health
-
-# API Documentation
-http://localhost:5011/docs
 ```
+
+Expected response:
+
+```json
+{ "status": "healthy", "agent": "assignment_coach" }
+```
+
+### Test Assignment Coach with Gemini API
+
+```powershell
+# Run comprehensive test suite
+powershell -ExecutionPolicy Bypass -File test_all_assignments_formatted.ps1
+```
+
+This will test 6 different assignments and show:
+
+- Assignment summaries
+- Task breakdowns
+- Resource recommendations
+- Student feedback
+- Execution time and cache status
+
+**Expected Output:** You should see detailed, assignment-specific responses with `Cached: False` and execution times of 8,000-12,000ms for fresh Gemini responses.
+
+## Troubleshooting
+
+### Generic Responses Issue
+
+If you're getting generic responses like "Research and gather relevant materials":
+
+1. **Verify API key is loaded:**
+
+   ```powershell
+   # Check .env file exists
+   Get-Content .env
+   ```
+
+2. **Restart the Assignment Coach:**
+
+   ```powershell
+   # Stop the running process (Ctrl+C in the terminal)
+   # Then restart:
+   uvicorn agents.assignment_coach.app:app --host 0.0.0.0 --port 5011 --reload
+   ```
+
+3. **Clear cache and restart:**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File restart_and_test.ps1
+   ```
+
+### Port Already in Use
+
+If you see "Address already in use" error:
+
+```powershell
+# Find and kill process using port 8000 (supervisor)
+Get-Process -Name python | Where-Object {$_.Path -like "*venv*"} | Stop-Process -Force
+
+# Or for specific port
+netstat -ano | findstr :8000
+taskkill /PID <PID_NUMBER> /F
+```
+
+### API Key Not Loading
+
+1. Verify `.env` file is in the project root (same directory as `main.py`)
+2. Ensure there are no quotes around the API key
+3. Check file encoding is UTF-8
+4. Restart the agent after modifying `.env`
+
+### Module Not Found Errors
+
+```powershell
+# Ensure virtual environment is activated
+.\venv\Scripts\activate
+
+# Reinstall dependencies
+pip install -r requirements.txt
+pip install -r agents/assignment_coach/requirements.txt
+```
+
+## Testing Different Assignments
+
+Use the test suite to verify functionality:
+
+```powershell
+# Test all 6 assignments with formatted output
+powershell -ExecutionPolicy Bypass -File test_all_assignments_formatted.ps1
+```
+
+Test cases include:
+
+1. E-commerce Database Schema (Advanced)
+2. Python Calculator (Beginner)
+3. ML Churn Prediction (Intermediate)
+4. Web Portfolio (Intermediate)
+5. Cybersecurity Audit (Advanced)
+6. Mobile App Design (Beginner)
+
+## Project Structure
+
+```
+Multi-Agent-System-BSE-7A/
+├── .env                          # Gemini API key (create this)
+├── venv/                         # Virtual environment (create this)
+├── requirements.txt              # Supervisor dependencies
+├── supervisor/
+│   └── main.py                   # Supervisor FastAPI app
+├── agents/
+│   └── assignment_coach/
+│       ├── app.py                # Assignment Coach FastAPI app
+│       ├── coach_agent.py        # Core agent logic with Gemini
+│       └── requirements.txt      # Agent dependencies
+└── tests/
+    └── test_all_assignments_formatted.ps1
+```
+
+## API Endpoints
+
+### Supervisor (Port 8000)
+
+- `GET /health` - Health check
+- `POST /process` - Route requests to agents
+
+### Assignment Coach (Port 5011)
+
+- `GET /health` - Health check
+- `POST /process` - Process assignment guidance requests
+- `GET /capabilities` - Get agent capabilities
+
+## Expected Behavior
+
+With proper Gemini API configuration, the Assignment Coach should:
+
+- Generate **detailed, context-aware summaries** of assignments
+- Create **specific task breakdowns** with estimated durations
+- Recommend **relevant resources** (articles, documentation, tutorials)
+- Provide **personalized feedback** based on assignment difficulty and student level
+
+**Without Gemini API key:** Responses will be generic placeholders.
+
+## Support
+
+For issues or questions, refer to the main `README.md` or check the test results for diagnostic information.
