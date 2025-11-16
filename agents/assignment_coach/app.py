@@ -1,14 +1,37 @@
 import logging
 import uuid
+import os
+from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from contextlib import asynccontextmanager
 from datetime import datetime
-
-from shared.models import TaskEnvelope, CompletionReport
-from agents.assignment_coach import ltm, coach_agent
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
+
+# Load environment variables from .env file
+env_path = Path(__file__).parent / '.env'
+root_env = Path(__file__).parent.parent.parent / '.env'
+
+if env_path.exists():
+    load_dotenv(env_path, override=True)
+    _logger.info(f"✅ Loaded .env from {env_path}")
+elif root_env.exists():
+    load_dotenv(root_env, override=True)
+    _logger.info(f"✅ Loaded .env from {root_env}")
+else:
+    _logger.warning(f"⚠️  No .env file found at {env_path} or {root_env}")
+
+# Log API key status (first 20 chars only for security)
+api_key = os.getenv('GEMINI_API_KEY', '')
+if api_key:
+    _logger.info(f"✅ GEMINI_API_KEY loaded: {api_key[:20]}...")
+else:
+    _logger.warning("⚠️  GEMINI_API_KEY not found in environment")
+
+from shared.models import TaskEnvelope, CompletionReport
+from agents.assignment_coach import ltm, coach_agent
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
