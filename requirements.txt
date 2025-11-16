@@ -13,3 +13,13 @@ aiosqlite
 google-generativeai
 dotenv
 
+langchain
+langchain-community
+langchain-huggingface
+faiss-cpu
+sentence-transformers
+pypdf
+unstructured
+reportlab
+requests
+python-multipart
