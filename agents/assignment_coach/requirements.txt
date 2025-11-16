@@ -1,0 +1,4 @@
+# Assignment Coach Agent specific dependencies
+langgraph>=0.0.20
+langchain-core>=0.1.0
+chromadb>=0.4.22
