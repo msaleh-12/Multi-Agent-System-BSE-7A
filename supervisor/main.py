@@ -73,6 +73,11 @@ async def logout(user: User = Depends(auth.require_auth)):
 async def get_current_user(user: User = Depends(auth.require_auth)):
     return user
 
+@app.get('/health')
+async def health():
+    """Health check endpoint for the supervisor."""
+    return {"status": "healthy", "service": "supervisor"}
+
 @app.get('/api/supervisor/registry')
 async def get_registry(user: User = Depends(auth.require_auth)):
     return {"agents": registry.list_agents()}

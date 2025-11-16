@@ -15,7 +15,18 @@ def decide_agent(payload: RequestPayload, agents: List[Agent]) -> List[str]:
 
     # Simple keyword-based routing for now.
     # In a real system, this would be a more sophisticated model.
-    if "generate" in payload.request.lower() or "summarize" in payload.request.lower():
+    
+    # Route assignment-related requests to assignment-coach
+    request_lower = payload.request.lower()
+    assignment_keywords = ["assignment", "homework", "task plan", "assignment guidance", "student", "deadline"]
+    if any(keyword in request_lower for keyword in assignment_keywords):
+        for agent in agents:
+            if "assignment-guidance" in agent.capabilities:
+                _logger.info(f"Routing to {agent.id} based on assignment keywords.")
+                return [agent.id]
+    
+    # Route text generation requests to gemini-wrapper
+    if "generate" in request_lower or "summarize" in request_lower:
         for agent in agents:
             if "text-generation" in agent.capabilities:
                 _logger.info(f"Routing to {agent.id} based on keywords.")

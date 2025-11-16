@@ -5,5 +5,12 @@
     "url": "http://localhost:5010",
     "description": "LLM wrapper for text generation",
     "capabilities": ["text-generation"]
+  },
+  {
+    "id": "assignment-coach",
+    "name": "Assignment Coach Agent",
+    "url": "http://localhost:5020",
+    "description": "Provides assignment understanding, task breakdown, resource suggestions, and progress guidance to students",
+    "capabilities": ["assignment-guidance", "task-planning", "resource-recommendation"]
   }
 ]

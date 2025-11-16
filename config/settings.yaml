@@ -12,3 +12,9 @@ gemini_wrapper:
   mode: "auto"  # auto -> cloud if env present else mock
   external_api_url: "${GEMINI_API_URL}"
   api_key_env: "GEMINI_API_KEY"
+
+assignment_coach:
+  host: 127.0.0.1
+  port: 5020
+  mode: "auto"  # auto -> cloud if env present else mock
+  model: "gemini-2.5-flash"

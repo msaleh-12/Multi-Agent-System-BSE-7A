@@ -11,5 +11,9 @@ pytest
 requests
 aiosqlite
 google-generativeai
-dotenv
+python-dotenv
+langgraph
+chromadb
+sentence-transformers
+numpy
 
