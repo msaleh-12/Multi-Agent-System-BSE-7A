@@ -3,13 +3,88 @@ LangGraph workflow for Assignment Coach Agent.
 """
 import logging
 import json
+import os
+import yaml
 from typing import Dict, Any, TypedDict, Annotated
 from datetime import datetime
+from dotenv import load_dotenv
+import google.generativeai as genai
 
 from langgraph.graph import StateGraph, END
 from agents.assignment_coach import ltm, tools
 
+load_dotenv()
+
+with open("config/settings.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
 _logger = logging.getLogger(__name__)
+
+ASSIGNMENT_COACH_CONFIG = config.get('assignment_coach', {})
+API_KEY = os.getenv("GEMINI_API_KEY")
+MODE = ASSIGNMENT_COACH_CONFIG.get("mode", "auto")
+
+def _get_mode():
+    """Determine if agent should run in mock or cloud mode."""
+    if MODE == "cloud":
+        return "cloud"
+    if MODE == "mock":
+        return "mock"
+    # Auto mode
+    if API_KEY:
+        return "cloud"
+    return "mock"
+
+def _build_llm_prompt(payload: Dict[str, Any], tool_results: Dict[str, Any]) -> str:
+    """Build prompt for LLM with tool results."""
+    prompt = """You are the Assignment Coach Agent. Your job is to help students understand and complete assignments.
+
+### TASK
+Given the assignment payload and tool-generated information, generate a comprehensive response with:
+- assignment summary (2-3 sentences)
+- step-by-step task plan (use the provided task breakdown, but enhance it with more detail)
+- resource recommendations (use the provided resources, but add more personalized suggestions)
+- personalized feedback (based on student profile, progress, and deadline urgency)
+- motivational message (keep it short, positive, and actionable)
+
+### TOOL RESULTS
+Time Estimate: {time_estimate}
+Task Breakdown: {task_breakdown}
+Resources: {resources}
+Urgency Info: {urgency_info}
+
+### ASSIGNMENT PAYLOAD
+{payload}
+
+### RULES
+- Always output valid JSON only.
+- Do not add extra text outside JSON.
+- Enhance the tool results with your knowledge and personalization.
+- Personalize responses based on student learning style, progress, skills, and weaknesses.
+- Keep tone supportive and helpful.
+- All timestamps must be in ISO-8601 UTC format.
+
+### OUTPUT FORMAT
+{{
+  "agent_name": "assignment_coach_agent",
+  "status": "success",
+  "response": {{
+    "assignment_summary": "",
+    "task_plan": [],
+    "recommended_resources": [],
+    "feedback": "",
+    "motivation": "",
+    "timestamp": ""
+  }}
+}}
+""".format(
+        time_estimate=json.dumps(tool_results.get("time_estimate", {}), indent=2),
+        task_breakdown=json.dumps(tool_results.get("task_breakdown", []), indent=2),
+        resources=json.dumps(tool_results.get("resources", []), indent=2),
+        urgency_info=json.dumps(tool_results.get("urgency_info", {}), indent=2),
+        payload=json.dumps(payload, indent=2)
+    )
+    return prompt
 
 class AgentState(TypedDict):
     """State for the Assignment Coach Agent workflow."""
@@ -83,8 +158,8 @@ def use_tools(state: AgentState) -> AgentState:
     
     return state
 
-def generate_response(state: AgentState) -> AgentState:
-    """Generate the final JSON response."""
+async def generate_response(state: AgentState) -> AgentState:
+    """Generate the final JSON response using LLM or tools."""
     _logger.info("Generating final response...")
     
     # If we have cached result from LTM, use it
@@ -97,8 +172,55 @@ def generate_response(state: AgentState) -> AgentState:
         except json.JSONDecodeError:
             _logger.warning("LTM result is not valid JSON, generating new response")
     
-    # Otherwise, generate new response using tools results
+    # Determine if we should use LLM or tools
+    mode = _get_mode()
     payload = state["payload"]
+    
+    if mode == "cloud" and API_KEY:
+        # Use LLM to generate response with tool results
+        try:
+            _logger.info("Using LLM to generate response with tool results...")
+            genai.configure(api_key=API_KEY)
+            model_name = ASSIGNMENT_COACH_CONFIG.get("model", "gemini-2.5-flash")
+            model = genai.GenerativeModel(model_name)
+            
+            # Prepare tool results
+            tool_results = {
+                "time_estimate": state.get("time_estimate"),
+                "task_breakdown": state.get("task_breakdown"),
+                "resources": state.get("resources"),
+                "urgency_info": state.get("urgency_info")
+            }
+            
+            # Build prompt with tool results
+            prompt = _build_llm_prompt(payload, tool_results)
+            
+            # Call LLM
+            response = await model.generate_content_async(prompt)
+            response_text = response.text.strip()
+            
+            # Extract JSON if wrapped in markdown code blocks
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            # Validate and parse JSON
+            try:
+                response_data = json.loads(response_text)
+                state["response"] = response_data
+                state["final_output"] = response_text
+                _logger.info("Successfully generated response using LLM")
+                return state
+            except json.JSONDecodeError as e:
+                _logger.warning(f"LLM response is not valid JSON: {e}, falling back to tools")
+                # Fall through to tools-based generation
+        except Exception as e:
+            _logger.error(f"Error calling LLM: {e}, falling back to tools")
+            # Fall through to tools-based generation
+    
+    # Fallback: Generate response using tools (for mock mode or LLM errors)
+    _logger.info("Generating response using tools...")
     student_profile = payload.get("student_profile", {})
     
     # Build response from tool outputs
