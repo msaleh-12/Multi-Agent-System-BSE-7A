@@ -1,6 +1,9 @@
 # Multi-Agent Backend
 
-This repository contains the backend for a multi-agent system, featuring a Supervisor and pluggable worker agents. This initial version includes a `gemini-wrapper` agent.
+This repository contains the backend for a multi-agent system, featuring a Supervisor and pluggable worker agents. Current agents:
+
+- **Gemini Wrapper**: LLM text generation
+- **Assignment Coach**: Student assignment guidance with task planning and resources
 
 ## Project Structure
 
@@ -18,12 +21,17 @@ This repository contains the backend for a multi-agent system, featuring a Super
 │   ├── routing.py            # Request routing logic
 │   ├── worker_client.py      # Client for communicating with workers
 │   └── tests/                # Tests for the supervisor
-├── gemini_wrapper/           # Gemini-wrapper worker agent
-│   ├── __init__.py
-│   ├── app.py                # Main FastAPI app for the worker
-│   ├── client.py             # Logic for calling Gemini API or mock
-│   ├── ltm.py                # Long-term memory (SQLite)
-│   └── tests/                # Tests for the gemini wrapper
+├── agents/
+│   ├── gemini_wrapper/       # Gemini-wrapper worker agent
+│   │   ├── app.py            # Main FastAPI app for the worker
+│   │   ├── client.py         # Logic for calling Gemini API or mock
+│   │   ├── ltm.py            # Long-term memory (SQLite)
+│   │   └── tests/            # Tests for the gemini wrapper
+│   └── assignment_coach/     # Assignment Coach worker agent
+│       ├── app.py            # Main FastAPI app for the agent
+│       ├── coach_agent.py    # LangGraph workflow
+│       ├── ltm.py            # Long-term memory (ChromaDB)
+│       └── tests/            # Tests for the assignment coach
 ├── shared/
 │   └── models.py             # Pydantic models shared across services
 ├── tests/
@@ -32,7 +40,8 @@ This repository contains the backend for a multi-agent system, featuring a Super
 ├── requirements.txt          # Python dependencies
 ├── README.md                 # This file
 ├── run_supervisor.sh         # Script to run the supervisor
-└── run_gemini.sh             # Script to run the gemini wrapper
+├── run_gemini.sh             # Script to run the gemini wrapper
+└── run_assignment_coach.sh   # Script to run the assignment coach
 ```
 
 ## Quickstart
@@ -49,31 +58,56 @@ pip install -r requirements.txt
 
 ### 2. Running the Services
 
-You need to run both the Supervisor and the Gemini Wrapper in separate terminals.
+You need to run the Supervisor and worker agents in separate terminals.
 
 **Terminal 1: Run the Supervisor**
+
 ```bash
+# Linux/Mac
 chmod +x run_supervisor.sh
 ./run_supervisor.sh
+
+# Windows
+uvicorn supervisor.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
 The Supervisor will be available at `http://127.0.0.1:8000`.
 
 **Terminal 2: Run the Gemini Wrapper**
+
 ```bash
+# Linux/Mac
 chmod +x run_gemini.sh
 ./run_gemini.sh
+
+# Windows
+uvicorn agents.gemini_wrapper.app:app --host 0.0.0.0 --port 5010 --reload
 ```
+
 The Gemini Wrapper will be available at `http://127.0.0.1:5010`. By default, it runs in `mock` mode.
+
+**Terminal 3: Run the Assignment Coach (Optional)**
+
+```bash
+# Linux/Mac
+chmod +x run_assignment_coach.sh
+./run_assignment_coach.sh
+
+# Windows
+uvicorn agents.assignment_coach.app:app --host 0.0.0.0 --port 5011 --reload
+```
+
+The Assignment Coach will be available at `http://127.0.0.1:5011`.
 
 ## Gemini Wrapper Modes
 
 The `gemini-wrapper` can run in two modes, configured in `config/settings.yaml`.
 
-*   **`mock` mode (default):** No external API calls are made. The agent returns a deterministic mock response. This is useful for local development and testing without needing API keys.
-*   **`cloud` mode:** The agent calls a real Gemini-like API. To enable this, you must:
-    1.  Set `mode: "cloud"` or `mode: "auto"` in `config/settings.yaml`.
-    2.  Create a `.env` file by copying `.env.example`.
-    3.  Fill in your `GEMINI_API_URL` and `GEMINI_API_KEY` in the `.env` file.
+- **`mock` mode (default):** No external API calls are made. The agent returns a deterministic mock response. This is useful for local development and testing without needing API keys.
+- **`cloud` mode:** The agent calls a real Gemini-like API. To enable this, you must:
+  1.  Set `mode: "cloud"` or `mode: "auto"` in `config/settings.yaml`.
+  2.  Create a `.env` file by copying `.env.example`.
+  3.  Fill in your `GEMINI_API_URL` and `GEMINI_API_KEY` in the `.env` file.
 
 ## Running Tests
 
