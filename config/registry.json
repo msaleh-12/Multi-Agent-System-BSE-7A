@@ -5,5 +5,12 @@
     "url": "http://localhost:5010",
     "description": "LLM wrapper for text generation",
     "capabilities": ["text-generation"]
+  },
+  {
+    "id": "daily-revision-proctor",
+    "name": "Daily Revision Proctor",
+    "url": "http://localhost:8001",
+    "description": "Study session tracker with AI-powered reminders",
+    "capabilities": ["study-tracking", "reminders", "analytics"]
   }
 ]
