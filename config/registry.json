@@ -1,6 +1,12 @@
 [
   {
     "id": "gemini-wrapper",
+<<<<<<< HEAD
+    "name": "Gemini Wrapper",
+    "url": "http://gemini-wrapper:5010",
+    "description": "LLM wrapper for text generation",
+    "capabilities": ["text-generation"]
+=======
     "name": "General Knowledge Assistant",
     "url": "http://gemini-wrapper:5010",
     "description": "Handles general knowledge questions, explanations, and conversations that don't require specialized educational tools. Use for: explaining concepts, answering 'what is' questions, general chat, and topics outside the learning system's specialized functions.",
@@ -133,5 +139,6 @@
     "capabilities": ["readiness-assessment", "mock-exam-generation", "preparation-evaluation", "comprehensive-testing", "readiness-scoring"],
     "keywords": ["exam readiness", "ready", "mock exam", "assess", "preparation", "readiness", "am I ready", "evaluate preparation", "mock test"],
     "status": "offline"
+>>>>>>> upstream/main
   }
 ]
